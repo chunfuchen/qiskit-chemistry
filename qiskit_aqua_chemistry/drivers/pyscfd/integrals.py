@@ -38,6 +38,8 @@ def compute_integrals(config):
     if val is None:
         raise AquaChemistryError('Atom value is missing')
 
+    is_atomic = config.get('atomic', False)
+
     atom = _check_molecule_format(val)
     basis = config.get('basis', 'sto3g')
     unit = config.get('unit', 'Angstrom')
@@ -54,7 +56,7 @@ def compute_integrals(config):
         mol.charge = charge
         mol.spin = spin
         mol.build(parse_arg=False)
-        ehf, enuke, norbs, mohij, mohijkl, mo_coeff, orbs_energy, x_dip, y_dip, z_dip, nucl_dip = _calculate_integrals(mol, calc_type)
+        ehf, enuke, norbs, mohij, mohijkl, mo_coeff, orbs_energy, x_dip, y_dip, z_dip, nucl_dip = _calculate_integrals(mol, calc_type, is_atomic)
     except Exception as exc:
         raise AquaChemistryError('Failed electronic structure computation') from exc
 
@@ -112,7 +114,7 @@ def _check_molecule_format(val):
     return val
 
 
-def _calculate_integrals(mol, calc_type='rhf'):
+def _calculate_integrals(mol, calc_type='rhf', atomic=False):
     """Function to calculate the one and two electron terms. Perform a Hartree-Fock calculation in
         the given basis.
     Args:
@@ -153,6 +155,11 @@ def _calculate_integrals(mol, calc_type='rhf'):
 
     norbs = mo_coeff.shape[0]
     orbs_energy = mf.mo_energy
+
+    ### for atomic basis
+    if atomic:
+        mo_coeff = np.identity(len(mo_coeff))
+    ###
 
     hij = mf.get_hcore()
     mohij = np.dot(np.dot(mo_coeff.T, hij), mo_coeff)
