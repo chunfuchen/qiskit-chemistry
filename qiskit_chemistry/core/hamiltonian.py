@@ -167,6 +167,7 @@ class Hamiltonian(ChemistryOperator):
         # Because freeze and eliminate is done in separate steps, with freeze first, we have to re-base
         # the indexes for elimination according to how many orbitals were removed when freezing.
         #
+        orbital_energies = np.concatenate((qmolecule.orbital_energies, qmolecule.orbital_energies))
         orbitals_list = list(set(core_list + reduce_list))
         nel = qmolecule.num_alpha + qmolecule.num_beta
         new_nel = nel
@@ -184,11 +185,10 @@ class Hamiltonian(ChemistryOperator):
             logger.info("  converting to spin orbital reduction list: {}".format(np.append(np.array(orbitals_list), np.array(orbitals_list) + qmolecule.num_orbitals)))
             logger.info("    => freezing spin orbitals: {}".format(freeze_list))
             logger.info("    => removing spin orbitals: {} (indexes accounting for freeze {})".format(remove_list_orig_idx, remove_list))
-
             new_nel -= len(freeze_list)
 
         fer_op = FermionicOperator(h1=qmolecule.one_body_integrals, h2=qmolecule.two_body_integrals)
-        fer_op, self._energy_shift, did_shift = Hamiltonian._try_reduce_fermionic_operator(fer_op, freeze_list, remove_list)
+        fer_op, orbital_energies, self._energy_shift, did_shift = Hamiltonian._try_reduce_fermionic_operator(fer_op, orbital_energies, freeze_list, remove_list)
         if did_shift:
             logger.info("Frozen orbital energy shift: {}".format(self._energy_shift))
         if self._transformation == Hamiltonian.TRANSFORMATION_PH:
@@ -199,6 +199,8 @@ class Hamiltonian(ChemistryOperator):
         qubit_op = Hamiltonian._map_fermionic_operator_to_qubit(fer_op, self._qubit_mapping, new_nel,
                                                                 self._two_qubit_reduction, self._max_workers)
         logger.debug('  num paulis: {}, num qubits: {}'.format(len(qubit_op.paulis), qubit_op.num_qubits))
+        self._add_molecule_info('orbital_energies', orbital_energies)
+        self._add_molecule_info('two_body_integrals', fer_op.h2)
         algo_input = EnergyInput(qubit_op)
 
         def _add_aux_op(aux_op):
@@ -217,7 +219,7 @@ class Hamiltonian(ChemistryOperator):
             def _dipole_op(dipole_integrals, axis):
                 logger.debug('Creating aux op for dipole {}'.format(axis))
                 fer_op_ = FermionicOperator(h1=dipole_integrals)
-                fer_op_, shift, did_shift_ = self._try_reduce_fermionic_operator(fer_op_, freeze_list, remove_list)
+                fer_op_, _, shift, did_shift_ = self._try_reduce_fermionic_operator(fer_op_, None, freeze_list, remove_list)
                 if did_shift_:
                     logger.info("Frozen orbital {} dipole shift: {}".format(axis, shift))
                 ph_shift_ = 0.0
@@ -340,15 +342,19 @@ class Hamiltonian(ChemistryOperator):
         return lines, result
 
     @staticmethod
-    def _try_reduce_fermionic_operator(fer_op, freeze_list, remove_list):
+    def _try_reduce_fermionic_operator(fer_op, orbital_energies, freeze_list, remove_list):
         did_shift = False
         energy_shift = 0.0
         if len(freeze_list) > 0:
             fer_op, energy_shift = fer_op.fermion_mode_freezing(freeze_list)
             did_shift = True
+            if orbital_energies is not None:
+                orbital_energies = np.delete(orbital_energies, freeze_list)
         if len(remove_list) > 0:
             fer_op = fer_op.fermion_mode_elimination(remove_list)
-        return fer_op, energy_shift, did_shift
+            if orbital_energies is not None:
+                orbital_energies = np.delete(orbital_energies, remove_list)
+        return fer_op, orbital_energies, energy_shift, did_shift
 
     @staticmethod
     def _map_fermionic_operator_to_qubit(fer_op, qubit_mapping, num_particles, two_qubit_reduction, max_workers):
