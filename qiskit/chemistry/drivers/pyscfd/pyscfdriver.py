@@ -64,6 +64,10 @@ class PySCFDriver(BaseDriver):
                 "max_memory": {
                     "type": ["integer", "null"],
                     "default": None
+                },
+                "is_atomic": {
+                    "type": "boolean",
+                    "default": False
                 }
             },
             "additionalProperties": False
@@ -76,7 +80,8 @@ class PySCFDriver(BaseDriver):
                  charge=0,
                  spin=0,
                  basis='sto3g',
-                 max_memory=None):
+                 max_memory=None,
+                 is_atomic=False):
         """
         Initializer
         Args:
@@ -104,6 +109,7 @@ class PySCFDriver(BaseDriver):
         self._spin = spin
         self._basis = basis
         self._max_memory = max_memory
+        self._is_atomic = is_atomic
 
     @staticmethod
     def check_driver_valid():
@@ -149,4 +155,5 @@ class PySCFDriver(BaseDriver):
                                  charge=self._charge,
                                  spin=self._spin,
                                  basis=self._basis,
-                                 max_memory=self._max_memory)
+                                 max_memory=self._max_memory,
+                                 is_atomic=self._is_atomic)

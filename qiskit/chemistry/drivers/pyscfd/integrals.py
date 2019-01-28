@@ -36,6 +36,7 @@ def compute_integrals(atom,
                       spin,
                       basis,
                       max_memory,
+                      is_atomic=False,
                       calc_type='rhf'):
     # Get config from input parameters
     # molecule is in PySCF atom string format e.g. "H .0 .0 .0; H .0 .0 0.2"
@@ -53,7 +54,7 @@ def compute_integrals(atom,
         mol.charge = charge
         mol.spin = spin
         mol.build(parse_arg=False)
-        ehf, enuke, norbs, mohij, mohijkl, mo_coeff, orbs_energy, x_dip, y_dip, z_dip, nucl_dip = _calculate_integrals(mol, calc_type)
+        ehf, enuke, norbs, mohij, mohijkl, mo_coeff, orbs_energy, x_dip, y_dip, z_dip, nucl_dip = _calculate_integrals(mol, calc_type, is_atomic)
     except Exception as exc:
         raise QiskitChemistryError('Failed electronic structure computation') from exc
 
@@ -116,7 +117,7 @@ def _check_molecule_format(val):
     return val
 
 
-def _calculate_integrals(mol, calc_type='rhf'):
+def _calculate_integrals(mol, calc_type='rhf', atomic=False):
     """Function to calculate the one and two electron terms. Perform a Hartree-Fock calculation in
         the given basis.
     Args:
@@ -157,6 +158,11 @@ def _calculate_integrals(mol, calc_type='rhf'):
 
     norbs = mo_coeff.shape[0]
     orbs_energy = mf.mo_energy
+
+    ### for atomic basis
+    if atomic:
+        mo_coeff = np.identity(len(mo_coeff))
+    ###
 
     hij = mf.get_hcore()
     mohij = np.dot(np.dot(mo_coeff.T, hij), mo_coeff)
